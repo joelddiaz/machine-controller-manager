@@ -66,6 +66,24 @@ func (d *AWSDriver) Create() (string, string, error) {
 		return "Error", "Error", err
 	}
 
+	// array of string pointers
+	var sec_groups []*string
+	for _, g := range d.AWSMachineClass.Spec.NetworkInterfaces[0].SecurityGroupIDs {
+		temp := g
+		sec_groups = append(sec_groups, &temp)
+	}
+
+	// build list of networkInterfaces (just 1 for now)
+	var networkInterfaces = []*ec2.InstanceNetworkInterfaceSpecification{
+		{
+			DeviceIndex:			aws.Int64(0),
+			AssociatePublicIpAddress:	aws.Bool(d.AWSMachineClass.Spec.NetworkInterfaces[0].AssociatePublicIPAddress),
+			SubnetId:			aws.String(d.AWSMachineClass.Spec.NetworkInterfaces[0].SubnetID),
+			Groups:				sec_groups,
+		},
+	}
+	glog.Errorf("interfaces: %v", d.AWSMachineClass.Spec.NetworkInterfaces[0])
+
 	var blkDeviceMappings []*ec2.BlockDeviceMapping
 	deviceName := output.Images[0].RootDeviceName
 	volumeSize := d.AWSMachineClass.Spec.BlockDevices[0].Ebs.VolumeSize
@@ -112,13 +130,14 @@ func (d *AWSDriver) Create() (string, string, error) {
 		MaxCount:     aws.Int64(1),
 		UserData:     &UserDataEnc,
 		KeyName:      aws.String(d.AWSMachineClass.Spec.KeyName),
-		SubnetId:     aws.String(d.AWSMachineClass.Spec.NetworkInterfaces[0].SubnetID),
+		//SubnetId:     aws.String(d.AWSMachineClass.Spec.NetworkInterfaces[0].SubnetID),
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
 			Name: &(d.AWSMachineClass.Spec.IAM.Name),
 		},
-		SecurityGroupIds:    []*string{aws.String(d.AWSMachineClass.Spec.NetworkInterfaces[0].SecurityGroupIDs[0])},
+		//SecurityGroupIds:    []*string{aws.String(d.AWSMachineClass.Spec.NetworkInterfaces[0].SecurityGroupIDs[0])},
 		BlockDeviceMappings: blkDeviceMappings,
 		TagSpecifications:   []*ec2.TagSpecification{tagInstance},
+		NetworkInterfaces: networkInterfaces,
 	}
 
 	runResult, err := svc.RunInstances(&inputConfig)
